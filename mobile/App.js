@@ -8,7 +8,7 @@ import { View, ActivityIndicator } from 'react-native';
 // Firebase
 import { auth, db } from './src/firebaseConfig';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 // Screens
 import LoginScreen from './src/screens/LoginScreen';
@@ -17,6 +17,7 @@ import ProfileScreen from './src/screens/ProfileScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
 import EmergencyScreen from './src/screens/EmergencyScreen';
 import HelpScreen from './src/screens/HelpScreen';
+import SplashScreen from './src/screens/SplashScreen'; // <-- Import Splash
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -58,7 +59,7 @@ const MainTabs = ({ userData, setUserData, history }) => (
     </Tab.Screen>
     <Tab.Screen name="Help" component={HelpScreen} />
     <Tab.Screen name="Profile">
-      {props => <ProfileScreen {...props} user={userData} onUpdate={setUserData} colors={COLORS} />}
+      {props => <ProfileScreen {...props} user={userData} colors={COLORS} />}
     </Tab.Screen>
   </Tab.Navigator>
 );
@@ -67,9 +68,18 @@ const App = () => {
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showSplash, setShowSplash] = useState(true); // <-- Splash State
 
   useEffect(() => {
-    // 1. Listen for Auth State Changes (Auto-Login)
+    // Show splash screen for 2.5 seconds minimum
+    const splashTimer = setTimeout(() => {
+      setShowSplash(false);
+    }, 2500);
+
+    return () => clearTimeout(splashTimer);
+  }, []);
+
+  useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (authenticatedUser) => {
       setUser(authenticatedUser);
       if (!authenticatedUser) {
@@ -82,7 +92,6 @@ const App = () => {
   }, []);
 
   useEffect(() => {
-    // 2. Fetch User Data from Firestore if logged in
     let unsubscribeDoc = () => {};
     if (user) {
       const userRef = doc(db, "users", user.uid);
@@ -99,7 +108,13 @@ const App = () => {
     return () => unsubscribeDoc();
   }, [user]);
 
-  if (loading) {
+  // Render Splash Screen First
+  if (showSplash) {
+    return <SplashScreen colors={COLORS} />;
+  }
+
+  // Fallback Loading if Auth is still resolving after Splash
+  if (loading && user) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background }}>
         <ActivityIndicator size="large" color={COLORS.primary} />
@@ -112,7 +127,7 @@ const App = () => {
       <Stack.Navigator screenOptions={{ headerStyle: { backgroundColor: COLORS.card }, headerTintColor: COLORS.text }}>
         {!user ? (
           <Stack.Screen name="Login" options={{ headerShown: false }}>
-            {props => <LoginScreen {...props} onLogin={() => {}} colors={COLORS} />}
+            {props => <LoginScreen {...props} colors={COLORS} />}
           </Stack.Screen>
         ) : (
           <>
