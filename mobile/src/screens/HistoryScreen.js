@@ -1,72 +1,144 @@
 import React from 'react';
-import { View, Text, StyleSheet, FlatList } from 'react-native';
-import { Heart, Droplets, Calendar } from 'lucide-react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { ChevronLeft, MoreHorizontal, BookOpen, Activity } from 'lucide-react-native';
 
-const HistoryScreen = ({ history, colors }) => {
+const HistoryScreen = ({ history = [], colors, navigation }) => {
+  // Generate actual current week dates
+  const today = new Date();
+  const currentMonth = today.toLocaleString('default', { month: 'long', year: 'numeric' });
+  const dayNames = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+  
+  const generateWeek = () => {
+    const week = [];
+    const current = new Date(today);
+    current.setDate(current.getDate() - current.getDay()); // Start from Sunday
+    for (let i = 0; i < 7; i++) {
+      week.push({
+        dayName: dayNames[i],
+        date: current.getDate(),
+        isToday: current.getDate() === today.getDate() && current.getMonth() === today.getMonth()
+      });
+      current.setDate(current.getDate() + 1);
+    }
+    return week;
+  };
+  
+  const weekData = generateWeek();
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.text }]}>Health History</Text>
-        <Text style={[styles.subtitle, { color: colors.lightText }]}>Your past 7 days performance</Text>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} showsVerticalScrollIndicator={false}>
+      
+      {/* Page Header */}
+      <View style={styles.pageHeader}>
+        <Text style={styles.pageTitle}>Health History</Text>
+        <TouchableOpacity style={styles.circleBtn} onPress={() => navigation.goBack()}>
+          <ChevronLeft size={18} color="#111827" />
+        </TouchableOpacity>
       </View>
 
-      <FlatList
-        data={history}
-        keyExtractor={item => item.id}
-        renderItem={({ item }) => (
-          <View style={[styles.card, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-            <View style={styles.dateRow}>
-              <Calendar size={14} color={colors.lightText} />
-              <Text style={[styles.dateText, { color: colors.lightText }]}>{item.date}</Text>
-            </View>
-            
-            <View style={styles.statsRow}>
-              <View style={styles.stat}>
-                <Heart size={20} color="#FF5252" fill="#FF5252" />
-                <View style={styles.statText}>
-                  <Text style={[styles.statValue, { color: colors.text }]}>{item.hr}</Text>
-                  <Text style={styles.statUnit}>BPM</Text>
-                </View>
-              </View>
+      {/* Calendar Strip */}
+      <View style={styles.calendarSection}>
+        <View style={styles.monthHeader}>
+          <Text style={styles.monthText}>{currentMonth}</Text>
+        </View>
 
-              <View style={styles.stat}>
-                <Droplets size={20} color="#2196F3" fill="#2196F3" />
-                <View style={styles.statText}>
-                  <Text style={[styles.statValue, { color: colors.text }]}>{item.spo2}</Text>
-                  <Text style={styles.statUnit}>%</Text>
-                </View>
-              </View>
-
-              <View style={[styles.badge, { backgroundColor: item.status === 'Warning' ? '#FFF3E0' : '#E8F5E9' }]}>
-                <Text style={[styles.badgeText, { color: item.status === 'Warning' ? '#EF6C00' : '#2E7D32' }]}>
-                  {item.status}
-                </Text>
-              </View>
+        <View style={styles.daysRow}>
+          {weekData.map((d, i) => (
+            <View key={i} style={[styles.dayCol, d.isToday && { backgroundColor: '#111827' }]}>
+              <Text style={[styles.dayName, d.isToday && { color: '#FFF' }]}>{d.dayName}</Text>
+              <Text style={[styles.dayNum, d.isToday && { color: '#FFF' }]}>{d.date}</Text>
             </View>
+          ))}
+        </View>
+      </View>
+
+      {/* Progress Section */}
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Performance</Text>
+        <TouchableOpacity><Text style={styles.seeAll}>Stats</Text></TouchableOpacity>
+      </View>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+        <View style={[styles.progressCard, { backgroundColor: colors.purple }]}>
+          <View style={styles.cardHeader}>
+            <View style={styles.iconCircle}><Activity size={14} color="#111827" /></View>
           </View>
-        )}
-        contentContainerStyle={styles.list}
-      />
-    </View>
+          <Text style={styles.cardTitle}>Cardio Endurance</Text>
+          <View style={styles.progressBarContainer}>
+            <View style={[styles.progressBarFill, { width: '52%', backgroundColor: '#111827' }]} />
+          </View>
+          <View style={styles.progressFooter}>
+            <Text style={styles.progressLabel}>Progress</Text>
+            <Text style={styles.progressPct}>52%</Text>
+          </View>
+        </View>
+
+        <View style={[styles.progressCard, { backgroundColor: colors.blue }]}>
+          <View style={styles.cardHeader}>
+            <View style={styles.iconCircle}><BookOpen size={14} color="#111827" /></View>
+          </View>
+          <Text style={styles.cardTitle}>Vitals Stability</Text>
+          <View style={styles.progressBarContainer}>
+            <View style={[styles.progressBarFill, { width: '85%', backgroundColor: '#111827' }]} />
+          </View>
+          <View style={styles.progressFooter}>
+            <Text style={styles.progressLabel}>Progress</Text>
+            <Text style={styles.progressPct}>85%</Text>
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* Recent Logs Section */}
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Recent Logs</Text>
+      </View>
+
+      <View style={styles.logList}>
+        <View style={[styles.logCard, { backgroundColor: colors.yellow }]}>
+           <Text style={styles.logTitle}>Morning Run</Text>
+           <Text style={styles.logSub}>Avg HR: 125 BPM</Text>
+        </View>
+        <View style={[styles.logCard, { backgroundColor: colors.pink }]}>
+           <Text style={styles.logTitle}>Resting Check</Text>
+           <Text style={styles.logSub}>SpO2: 99%</Text>
+        </View>
+      </View>
+
+      <View style={{ height: 100 }} />
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { padding: 20, paddingTop: 10 },
-  title: { fontSize: 24, fontWeight: 'bold' },
-  subtitle: { fontSize: 14, marginTop: 4 },
-  list: { padding: 15 },
-  card: { padding: 16, borderRadius: 16, marginBottom: 15, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5 },
-  dateRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 6 },
-  dateText: { fontSize: 12, fontWeight: '500' },
-  statsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  stat: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  statText: { alignItems: 'flex-start' },
-  statValue: { fontSize: 18, fontWeight: 'bold' },
-  statUnit: { fontSize: 10, color: '#AAA', fontWeight: '500' },
-  badge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 },
-  badgeText: { fontSize: 11, fontWeight: 'bold' }
+  pageHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 15 },
+  pageTitle: { fontSize: 24, fontWeight: '900', color: '#111827' },
+  circleBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: '#E5E7EB', justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF' },
+  calendarSection: { paddingHorizontal: 20, marginBottom: 20 },
+  monthHeader: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 15 },
+  monthText: { fontSize: 13, fontWeight: '800', color: '#6B7280', textTransform: 'uppercase', letterSpacing: 1 },
+  daysRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  dayCol: { alignItems: 'center', paddingVertical: 8, paddingHorizontal: 6, borderRadius: 16 },
+  activeDayCol: { backgroundColor: '#111827' },
+  dayName: { fontSize: 10, color: '#6B7280', marginBottom: 6, fontWeight: '600' },
+  dayNum: { fontSize: 13, color: '#111827', fontWeight: '800' },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 15, marginTop: 5 },
+  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#111827' },
+  seeAll: { fontSize: 13, fontWeight: '600', color: '#D8B4FE' },
+  horizontalScroll: { paddingHorizontal: 20, gap: 12, paddingBottom: 10 },
+  progressCard: { width: 180, height: 130, borderRadius: 24, padding: 15, justifyContent: 'space-between' },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  iconCircle: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center' },
+  cardTitle: { fontSize: 15, fontWeight: '800', color: '#111827', marginTop: 8 },
+  progressBarContainer: { height: 4, backgroundColor: 'rgba(0,0,0,0.1)', borderRadius: 2, marginTop: 10 },
+  progressBarFill: { height: '100%', borderRadius: 2 },
+  progressFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
+  progressLabel: { fontSize: 10, color: 'rgba(0,0,0,0.5)', fontWeight: '600' },
+  progressPct: { fontSize: 11, fontWeight: '800', color: '#111827' },
+  logList: { paddingHorizontal: 20, gap: 12 },
+  logCard: { padding: 18, borderRadius: 24, height: 90, justifyContent: 'center' },
+  logTitle: { fontSize: 18, fontWeight: '900', color: '#111827' },
+  logSub: { fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: '700', marginTop: 2 }
 });
 
 export default HistoryScreen;

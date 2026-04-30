@@ -1,38 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, Dimensions, Image } from 'react-native';
-import { Heart, Activity, Zap, Thermometer, ShieldAlert, ChevronRight, TrendingUp } from 'lucide-react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image } from 'react-native';
+import { Heart, Activity, Play, User } from 'lucide-react-native';
 import { calculateThresholds, detectRiskLevel } from '../utils/healthEngine';
 import { db, auth } from '../firebaseConfig';
-import { doc, updateDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
-
-const { width } = Dimensions.get('window');
+import { doc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 const MonitoringScreen = ({ user, colors, navigation }) => {
   const [vitals, setVitals] = useState({ hr: 0, spo2: 0, temp: 98.6 });
-  const [risk, setRisk] = useState({ level: 'NORMAL', color: colors.green, action: 'Stable' });
   const [isMonitoring, setIsMonitoring] = useState(false);
   
-  const scrollX = useRef(new Animated.Value(0)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const thresholds = calculateThresholds(user.age || 25);
+  const thresholds = calculateThresholds(user?.age || 25);
+  const tags = ['Cardio Hub', 'Vitals Track', 'Strength', 'Diet Plan'];
 
-  const heroBanners = [
-    { id: 1, title: 'Health Hub', subtitle: 'Real-time vitals monitoring', img: 'https://images.unsplash.com/photo-1576091160550-2173dad99d1b?auto=format&fit=crop&q=80&w=1000' },
-    { id: 2, title: 'Fitness Lab', subtitle: 'BMI & Body Composition insights', img: 'https://images.unsplash.com/photo-1551601651-2a8555f1a136?auto=format&fit=crop&q=80&w=1000' },
-  ];
-
-  useEffect(() => {
-    if (isMonitoring) {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, { toValue: 1.15, duration: 400, useNativeDriver: true }),
-          Animated.timing(pulseAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
-        ])
-      ).start();
-    }
-  }, [isMonitoring]);
-
-  // Cloud Sync Vitals Loop
   useEffect(() => {
     let interval;
     if (isMonitoring && auth.currentUser) {
@@ -45,139 +24,132 @@ const MonitoringScreen = ({ user, colors, navigation }) => {
         const newRisk = detectRiskLevel(hr, spo2, thresholds);
         
         setVitals(newVitals);
-        setRisk(newRisk);
 
-        // SYNC TO CLOUD
         try {
           const userRef = doc(db, "users", auth.currentUser.uid);
-          await updateDoc(userRef, {
-            currentHR: hr,
-            currentSpO2: spo2,
-            currentTemp: temp,
-            lastUpdate: serverTimestamp(),
-            status: newRisk.level
-          });
-        } catch (e) {
-          console.error("Cloud Vital Sync Error:", e);
-        }
+          await setDoc(userRef, { currentHR: hr, currentSpO2: spo2, currentTemp: temp, lastUpdate: serverTimestamp(), status: newRisk.level }, { merge: true });
+        } catch (e) { console.error("Sync Error", e); }
       }, 3000);
     }
     return () => clearInterval(interval);
-  }, [isMonitoring, user.age]);
+  }, [isMonitoring, user?.age]);
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]} showsVerticalScrollIndicator={false}>
-      <View style={styles.carouselSection}>
-        <Animated.ScrollView
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], { useNativeDriver: true })}
-          scrollEventThrottle={16}
-        >
-          {heroBanners.map((item, index) => {
-            const inputRange = [(index - 1) * width, index * width, (index + 1) * width];
-            const scale = scrollX.interpolate({ inputRange, outputRange: [0.95, 1, 0.95], extrapolate: 'clamp' });
-            return (
-              <Animated.View key={item.id} style={[styles.heroSlide, { transform: [{ scale }] }]}>
-                <Image source={{ uri: item.img }} style={styles.heroImg} />
-                <View style={styles.heroOverlay}>
-                  <Text style={styles.heroTitle}>{item.title}</Text>
-                  <Text style={styles.heroSub}>{item.subtitle}</Text>
-                </View>
-              </Animated.View>
-            );
-          })}
-        </Animated.ScrollView>
-      </View>
-
+      
+      {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>Live Status</Text>
-          <View style={[styles.miniBadge, { backgroundColor: '#EDE7F6' }]}>
-            <TrendingUp size={10} color={colors.primary} />
-            <Text style={[styles.badgeText, { color: colors.primary }]}>{user.goal || 'Health Tracking'}</Text>
-          </View>
+          <Text style={styles.greeting}>Hi, {user?.name?.split(' ')[0] || 'User'}</Text>
+          <Text style={styles.membershipText}>GymCare {user?.goal || 'Member'}</Text>
         </View>
-        <TouchableOpacity style={[styles.sosBtn, { backgroundColor: colors.red }]} onPress={() => navigation.navigate('Emergency')}>
-          <ShieldAlert size={18} color="#FFF" />
-          <Text style={styles.sosText}>SOS</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
+          <Image 
+            source={{ uri: `https://api.dicebear.com/7.x/personas/png?seed=${user?.name || 'User'}&backgroundColor=d8b4fe${user?.gender === 'Female' ? '&hair=long' : '&hair=short'}` }} 
+            style={styles.avatar} 
+          />
         </TouchableOpacity>
       </View>
 
-      <View style={styles.vitalsContainer}>
-        <View style={styles.vitalsRow}>
-          <View style={[styles.vCard, { backgroundColor: colors.card }]}>
-            <View style={[styles.iconCirc, { backgroundColor: '#FFEBEE' }]}><Heart size={18} color={colors.red} fill={colors.red} /></View>
-            <Animated.View style={{ transform: [{ scale: pulseAnim }] }}><Text style={styles.vNum}>{vitals.hr || '--'}</Text></Animated.View>
-            <Text style={styles.vLab}>Pulse (BPM)</Text>
+      <View style={styles.heroSection}>
+        <Text style={styles.heroTitle}>Let's Monitor Now!</Text>
+      </View>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tagScroll}>
+        {tags.map((tag, i) => (
+          <View key={i} style={[styles.tag, { backgroundColor: i === 0 ? colors.green : i === 1 ? colors.pink : i === 2 ? colors.blue : '#E5E7EB' }]}>
+            <Text style={styles.tagText}>{tag}</Text>
           </View>
-          
-          <View style={[styles.vCard, { backgroundColor: colors.card }]}>
-            <View style={[styles.iconCirc, { backgroundColor: '#E3F2FD' }]}><Activity size={18} color={colors.blue} /></View>
-            <Text style={styles.vNum}>{vitals.spo2 || '--'}</Text>
-            <Text style={styles.vLab}>Oxygen (%)</Text>
+        ))}
+      </ScrollView>
+
+      <View style={styles.cardsContainer}>
+        
+        {/* Heart Rate Card */}
+        <View style={[styles.pastelCard, { backgroundColor: colors.yellow }]}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>Heart Rate{"\n"}Monitoring</Text>
+            
+            <View style={styles.scoreContainer}>
+               <Text style={styles.vitalsHuge}>{isMonitoring ? vitals.hr : '--'}</Text>
+               <Text style={styles.vitalsSmall}>BPM</Text>
+            </View>
           </View>
-          
-          <View style={[styles.vCard, { backgroundColor: colors.card }]}>
-            <View style={[styles.iconCirc, { backgroundColor: '#FFF3E0' }]}><Thermometer size={18} color={colors.orange} /></View>
-            <Text style={styles.vNum}>{isMonitoring ? vitals.temp : '--'}</Text>
-            <Text style={styles.vLab}>Temp (°F)</Text>
+
+          <View style={styles.cardFooter}>
+            <TouchableOpacity style={styles.cardActionBtn} onPress={() => setIsMonitoring(!isMonitoring)}>
+              <Text style={styles.cardActionText}>{isMonitoring ? 'Stop Tracking' : 'Start Tracking'}</Text>
+            </TouchableOpacity>
+            <View style={[styles.playBtn, { backgroundColor: '#111827' }]}>
+              {isMonitoring ? <Activity size={18} color="#FFF" /> : <Play size={18} color="#FFF" fill="#FFF" />}
+            </View>
           </View>
         </View>
 
-        <View style={[styles.statusBanner, { backgroundColor: risk.color + '15', borderColor: risk.color }]}>
-          <Zap size={16} color={risk.color} fill={risk.color} />
-          <Text style={[styles.statusMsg, { color: risk.color }]}>{isMonitoring ? `CLOUD SYNC ACTIVE: ${risk.level}` : 'READY TO STREAM'}</Text>
-        </View>
-      </View>
-
-      <View style={styles.actionSection}>
-        <TouchableOpacity 
-          style={[styles.mainAction, { backgroundColor: isMonitoring ? '#333' : colors.primary }]}
-          onPress={() => setIsMonitoring(!isMonitoring)}
-        >
-          <Activity size={24} color="#FFF" />
-          <View style={styles.actionTextCol}>
-            <Text style={styles.actionTitle}>{isMonitoring ? 'Stop Monitoring' : 'Start Live Stream'}</Text>
-            <Text style={styles.actionSub}>{isMonitoring ? 'Syncing to Firebase Cloud' : 'Connect biometric sensors'}</Text>
+        {/* Oxygen & Temp Card */}
+        <View style={[styles.pastelCard, { backgroundColor: colors.purple, marginTop: 15 }]}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>Oxygen &{"\n"}Temperature</Text>
+            
+            <View style={styles.scoreContainerRight}>
+               <View style={styles.miniScoreRow}>
+                 <Text style={styles.vitalsMedium}>{isMonitoring ? vitals.spo2 : '--'}</Text>
+                 <Text style={styles.vitalsSmallLabel}>% SpO2</Text>
+               </View>
+               <View style={styles.miniScoreRow}>
+                 <Text style={styles.vitalsMedium}>{isMonitoring ? vitals.temp : '--'}</Text>
+                 <Text style={styles.vitalsSmallLabel}>°F Temp</Text>
+               </View>
+            </View>
           </View>
-          <ChevronRight size={20} color="#FFF" opacity={0.5} />
-        </TouchableOpacity>
+
+          <View style={styles.cardFooter}>
+            <View style={styles.miniStatsRow}>
+              <View style={styles.miniStatBox}>
+                <Activity size={14} color="#111827" />
+                <Text style={styles.miniStatVal}>Sensors Active</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
       </View>
 
-      <View style={{ height: 40 }} />
+      <View style={{ height: 100 }} />
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  carouselSection: { height: 220, marginTop: 10 },
-  heroSlide: { width: width, paddingHorizontal: 15, height: 200, position: 'relative' },
-  heroImg: { position: 'absolute', top: 0, left: 15, right: 15, bottom: 0, width: width - 30, height: 200, borderRadius: 24, resizeMode: 'cover' },
-  heroOverlay: { position: 'absolute', bottom: 20, left: 35, backgroundColor: 'rgba(255,255,255,0.95)', padding: 12, borderRadius: 18, elevation: 5 },
-  heroTitle: { fontSize: 16, fontWeight: 'bold', color: '#121212' },
-  heroSub: { fontSize: 11, color: '#666', marginTop: 2 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 20, marginBottom: 20 },
-  greeting: { fontSize: 22, fontWeight: 'bold', color: '#121212' },
-  miniBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, gap: 5, marginTop: 4 },
-  badgeText: { fontSize: 10, fontWeight: 'bold' },
-  sosBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 15, gap: 6, elevation: 4 },
-  sosText: { color: '#FFF', fontWeight: 'bold', fontSize: 12 },
-  vitalsContainer: { marginHorizontal: 20, marginBottom: 25 },
-  vitalsRow: { flexDirection: 'row', gap: 10, marginBottom: 15 },
-  vCard: { flex: 1, padding: 15, borderRadius: 24, alignItems: 'center', elevation: 2 },
-  iconCirc: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
-  vNum: { fontSize: 20, fontWeight: 'bold', color: '#121212' },
-  vLab: { fontSize: 8, color: '#AAA', fontWeight: 'bold', textTransform: 'uppercase', marginTop: 4 },
-  statusBanner: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 15, borderWidth: 1, gap: 10 },
-  statusMsg: { fontSize: 11, fontWeight: 'bold', letterSpacing: 0.5 },
-  actionSection: { marginHorizontal: 20 },
-  mainAction: { flexDirection: 'row', alignItems: 'center', padding: 22, borderRadius: 28, elevation: 5 },
-  actionTextCol: { flex: 1, marginLeft: 15 },
-  actionTitle: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
-  actionSub: { color: '#FFF', fontSize: 12, opacity: 0.7, marginTop: 2 }
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 10, paddingBottom: 15 },
+  greeting: { fontSize: 16, fontWeight: 'bold', color: '#111827' },
+  membershipText: { fontSize: 12, color: '#6B7280', marginTop: 2 },
+  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#D8B4FE' },
+  avatarPlaceholder: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#111827', justifyContent: 'center', alignItems: 'center' },
+  heroSection: { paddingHorizontal: 20, paddingBottom: 15 },
+  heroTitle: { fontSize: 32, fontWeight: '900', color: '#111827', letterSpacing: -0.5 },
+  tagScroll: { paddingHorizontal: 20, paddingBottom: 20, gap: 8 },
+  tag: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 15, justifyContent: 'center', alignItems: 'center' },
+  tagText: { fontSize: 12, fontWeight: '700', color: '#111827' },
+  cardsContainer: { paddingHorizontal: 20 },
+  pastelCard: { width: '100%', minHeight: 180, borderRadius: 24, padding: 20, justifyContent: 'space-between' },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  cardTitle: { fontSize: 20, fontWeight: '800', color: '#111827', lineHeight: 26, flex: 1 },
+  scoreContainer: { backgroundColor: 'rgba(255,255,255,0.6)', paddingHorizontal: 20, paddingVertical: 15, borderRadius: 20, alignItems: 'center', minWidth: 90 },
+  scoreContainerRight: { backgroundColor: 'rgba(255,255,255,0.5)', padding: 15, borderRadius: 20, minWidth: 100 },
+  miniScoreRow: { flexDirection: 'row', alignItems: 'baseline', gap: 4, marginBottom: 4 },
+  vitalsHuge: { fontSize: 32, fontWeight: '900', color: '#111827' },
+  vitalsMedium: { fontSize: 22, fontWeight: '900', color: '#111827' },
+  vitalsSmall: { fontSize: 12, fontWeight: '700', color: '#6B7280' },
+  vitalsSmallLabel: { fontSize: 10, fontWeight: '700', color: '#111827' },
+  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 20 },
+  cardActionBtn: { backgroundColor: '#FFF', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20 },
+  cardActionText: { fontSize: 13, fontWeight: '700', color: '#111827' },
+  playBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
+  miniStatsRow: { flexDirection: 'row', gap: 8 },
+  miniStatBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.5)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, gap: 6 },
+  miniStatVal: { fontSize: 12, fontWeight: '700', color: '#111827' }
 });
 
 export default MonitoringScreen;

@@ -21,12 +21,18 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#6200EE"
+        "backgroundColor": "#F9FAFB"
       },
-      "package": "com.gymcare.app"
+      "package": "com.gymcare.app",
+      "versionCode": 1
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "26a47d11-79c8-4275-b4e7-00391384dcf3"
+      }
     }
   }
 }

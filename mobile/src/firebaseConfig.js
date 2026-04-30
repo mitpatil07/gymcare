@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -18,6 +19,12 @@ const app = initializeApp(firebaseConfig);
 
 // Initialize & Export Firebase services
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+
+// IMPORTANT: If your Firestore database is NOT named "(default)", 
+// you must provide its exact name as the second argument below.
+// Example: export const db = getFirestore(app, "my-custom-database-id");
+export const db = getFirestore(app); 
+
+export const storage = getStorage(app);
 
 export default app;
