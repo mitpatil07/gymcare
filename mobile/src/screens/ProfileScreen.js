@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, Image, Dimensions, Animated, LayoutAnimation, Platform, UIManager } from 'react-native';
-import { Ruler, Scale, Heart, ShieldAlert, Pill, Phone, User, Stethoscope, Clock } from 'lucide-react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, Image, Dimensions, Animated, LayoutAnimation, Platform, UIManager, ActivityIndicator } from 'react-native';
+import { Ruler, Scale, Heart, ShieldAlert, Pill, Phone, User, Stethoscope, Clock, LogOut } from 'lucide-react-native';
+import { auth, db } from '../firebaseConfig';
+import { doc, updateDoc } from 'firebase/firestore';
 
 const { width } = Dimensions.get('window');
 
@@ -8,13 +10,13 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-const ProfileScreen = ({ user, onUpdate, colors }) => {
+const ProfileScreen = ({ user, colors }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState(user);
   const [activeSlide, setActiveSlide] = useState(0);
+  const [saving, setSaving] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  // FIXED: Reliable cloud URLs for images
   const banners = [
     { id: 1, title: 'Stay Hydrated', text: 'Drink at least 8 glasses of water daily for optimal health.', img: 'https://images.unsplash.com/photo-1550963295-019d8a8a61c5?auto=format&fit=crop&q=80&w=1000' },
     { id: 2, title: 'Daily Workout', text: 'Keep your heart healthy with 30 mins of daily cardio.', img: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&q=80&w=1000' },
@@ -29,31 +31,37 @@ const ProfileScreen = ({ user, onUpdate, colors }) => {
     setIsEditing(!isEditing);
   };
 
-  const updateField = (field, val) => {
-    if (field === 'hasDisease') {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.spring);
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const userRef = doc(db, "users", auth.currentUser.uid);
+      await updateDoc(userRef, formData);
+      toggleEditing();
+      Alert.alert("Success", "Your cloud health profile has been updated.");
+    } catch (error) {
+      Alert.alert("Sync Error", error.message);
+    } finally {
+      setSaving(false);
     }
-    setFormData({ ...formData, [field]: val });
   };
 
-  const handleSave = () => {
-    onUpdate(formData);
-    toggleEditing();
-    Alert.alert("Profile Synced", "All health parameters have been updated.");
+  const handleLogout = () => {
+    Alert.alert("Logout", "Are you sure you want to sign out?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Logout", onPress: () => auth.signOut(), style: "destructive" }
+    ]);
   };
 
-  const InfoBlock = ({ label, value, field, keyboard = 'default', isMultiline = false, placeholder = '' }) => (
+  const InfoBlock = ({ label, value, field, keyboard = 'default', isMultiline = false }) => (
     <View style={styles.infoBlock}>
       <Text style={styles.label}>{label}</Text>
       {isEditing ? (
         <TextInput 
           style={[styles.input, isMultiline && styles.textArea]} 
           value={value?.toString()} 
-          placeholder={placeholder}
-          placeholderTextColor="#AAA"
           keyboardType={keyboard}
           multiline={isMultiline}
-          onChangeText={(val) => updateField(field, val)}
+          onChangeText={(val) => setFormData({...formData, [field]: val})}
         />
       ) : (
         <Text style={styles.value}>{value || '--'}</Text>
@@ -91,11 +99,11 @@ const ProfileScreen = ({ user, onUpdate, colors }) => {
       <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: fadeAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
         <View style={styles.summaryCard}>
           <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-            <Text style={styles.avatarText}>{formData.name.charAt(0)}</Text>
+            <Text style={styles.avatarText}>{user.name?.charAt(0)}</Text>
           </View>
           <View style={styles.summaryText}>
-            <Text style={styles.uName}>{formData.name}</Text>
-            <Text style={styles.uGoal}>Target: {formData.goal}</Text>
+            <Text style={styles.uName}>{user.name}</Text>
+            <Text style={styles.uGoal}>Status: Connected to Cloud</Text>
           </View>
           <TouchableOpacity style={styles.editBtnSmall} onPress={toggleEditing}>
             <Text style={[styles.editBtnTextSmall, { color: colors.primary }]}>{isEditing ? 'Cancel' : 'Edit'}</Text>
@@ -114,61 +122,59 @@ const ProfileScreen = ({ user, onUpdate, colors }) => {
         </View>
 
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <ShieldAlert size={18} color={colors.red} />
-            <Text style={styles.sectionTitle}>Clinical History</Text>
-          </View>
+          <View style={styles.sectionHeader}><ShieldAlert size={18} color={colors.red} /><Text style={styles.sectionTitle}>Medical Data</Text></View>
           <View style={styles.card}>
-            <InfoBlock label="Any Chronic Disease?" value={formData.hasDisease} field="hasDisease" placeholder="Yes/No" />
-            {formData.hasDisease.toLowerCase() === 'yes' && (
+            <InfoBlock label="Any Chronic Disease?" value={formData.hasDisease} field="hasDisease" />
+            {formData.hasDisease?.toLowerCase() === 'yes' && (
               <View style={styles.expandedMedical}>
                 <InfoBlock label="Disease Name" value={formData.diseaseName} field="diseaseName" />
+                <InfoBlock label="Symptoms" value={formData.symptoms} field="symptoms" />
                 <InfoBlock label="Description" value={formData.diseaseDesc} field="diseaseDesc" isMultiline />
                 <View style={styles.row}>
                   <InfoBlock label="Severity" value={formData.severity} field="severity" />
-                  <InfoBlock label="Since When" value={formData.sinceWhen} field="sinceWhen" />
+                  <InfoBlock label="Since" value={formData.sinceWhen} field="sinceWhen" />
                 </View>
-                <InfoBlock label="Primary Doctor" value={formData.doctorName} field="doctorName" />
               </View>
             )}
           </View>
         </View>
 
-        {formData.hasDisease.toLowerCase() === 'yes' && (
+        {formData.hasDisease?.toLowerCase() === 'yes' && (
           <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Pill size={18} color={colors.orange} />
-              <Text style={styles.sectionTitle}>Current Medication</Text>
-            </View>
+            <View style={styles.sectionHeader}><Pill size={18} color={colors.orange} /><Text style={styles.sectionTitle}>Medication</Text></View>
             <View style={[styles.card, { borderLeftWidth: 4, borderLeftColor: colors.orange }]}>
-              <InfoBlock label="Medicine Name" value={formData.medicineName} field="medicineName" />
+              <InfoBlock label="Medicine" value={formData.medicineName} field="medicineName" />
               <View style={styles.row}>
                 <InfoBlock label="Dosage" value={formData.dosage} field="dosage" />
                 <InfoBlock label="Frequency" value={formData.frequency} field="frequency" />
               </View>
-              <InfoBlock label="Preferred Timing" value={formData.medTime} field="medTime" />
             </View>
           </View>
         )}
 
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Phone size={18} color={colors.red} />
-            <Text style={styles.sectionTitle}>Emergency Response</Text>
-          </View>
+          <View style={styles.sectionHeader}><Phone size={18} color={colors.red} /><Text style={styles.sectionTitle}>Emergency Contact</Text></View>
           <View style={styles.card}>
-            <InfoBlock label="Contact Number" value={formData.emergencyContact} field="emergencyContact" keyboard="phone-pad" />
-            <InfoBlock label="Relationship" value={formData.relation} field="relation" />
+            <InfoBlock label="Number" value={formData.emergencyContact} field="emergencyContact" keyboard="phone-pad" />
+            <InfoBlock label="Relation" value={formData.relation} field="relation" />
           </View>
         </View>
 
-        {isEditing && (
-          <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleSave}>
-            <Text style={styles.saveBtnText}>Save Medical Profile</Text>
-          </TouchableOpacity>
-        )}
+        <View style={styles.btnCol}>
+          {isEditing ? (
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleSave} disabled={saving}>
+              {saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveBtnText}>Sync to Cloud</Text>}
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+              <LogOut size={18} color={colors.red} />
+              <Text style={[styles.logoutText, { color: colors.red }]}>Logout from GymCare</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
       </Animated.View>
-      <View style={{ height: 50 }} />
+      <View style={{ height: 40 }} />
     </ScrollView>
   );
 };
@@ -188,12 +194,12 @@ const styles = StyleSheet.create({
   avatarText: { color: '#FFF', fontSize: 20, fontWeight: 'bold' },
   summaryText: { flex: 1, marginLeft: 15 },
   uName: { fontSize: 18, fontWeight: 'bold', color: '#121212' },
-  uGoal: { fontSize: 12, color: '#888', marginTop: 2 },
+  uGoal: { fontSize: 11, color: '#6200EE', marginTop: 2, fontWeight: 'bold' },
   editBtnSmall: { paddingHorizontal: 15, paddingVertical: 8, borderRadius: 12, backgroundColor: '#F3E5F5' },
   editBtnTextSmall: { fontSize: 12, fontWeight: 'bold' },
   section: { marginHorizontal: 20, marginBottom: 25 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
-  sectionTitle: { fontSize: 13, fontWeight: 'bold', color: '#888', textTransform: 'uppercase', letterSpacing: 1 },
+  sectionTitle: { fontSize: 12, fontWeight: 'bold', color: '#888', textTransform: 'uppercase', letterSpacing: 1 },
   card: { backgroundColor: '#FFF', borderRadius: 24, padding: 20, elevation: 2 },
   row: { flexDirection: 'row', gap: 15 },
   infoBlock: { flex: 1, marginBottom: 15 },
@@ -202,8 +208,11 @@ const styles = StyleSheet.create({
   input: { backgroundColor: '#F8F9FA', borderRadius: 10, padding: 12, color: '#121212', fontSize: 13, borderWidth: 1, borderColor: '#EEE' },
   textArea: { height: 80, textAlignVertical: 'top' },
   expandedMedical: { marginTop: 10, borderTopWidth: 1, borderTopColor: '#F5F5F5', paddingTop: 15 },
-  saveBtn: { backgroundColor: '#6200EE', marginHorizontal: 20, padding: 18, borderRadius: 20, alignItems: 'center', elevation: 4, marginTop: 10 },
-  saveBtnText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 }
+  btnCol: { marginHorizontal: 20, gap: 15 },
+  saveBtn: { padding: 18, borderRadius: 20, alignItems: 'center', elevation: 4 },
+  saveBtnText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
+  logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 15, borderStyle: 'dashed', borderWidth: 1, borderColor: '#FF5252', borderRadius: 15 },
+  logoutText: { fontWeight: 'bold', fontSize: 14 }
 });
 
 export default ProfileScreen;

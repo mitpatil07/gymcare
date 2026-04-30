@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, Dimensions, Image } from 'react-native';
 import { Heart, Activity, Zap, Thermometer, ShieldAlert, ChevronRight, TrendingUp } from 'lucide-react-native';
 import { calculateThresholds, detectRiskLevel } from '../utils/healthEngine';
+import { db, auth } from '../firebaseConfig';
+import { doc, updateDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 const { width } = Dimensions.get('window');
 
@@ -12,12 +14,11 @@ const MonitoringScreen = ({ user, colors, navigation }) => {
   
   const scrollX = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const thresholds = calculateThresholds(user.age);
+  const thresholds = calculateThresholds(user.age || 25);
 
-  // High-fidelity cloud banners
   const heroBanners = [
-    { id: 1, title: 'Health Monitoring', subtitle: 'Live HR & SpO2 tracking', img: 'https://images.unsplash.com/photo-1576091160550-2173dad99d1b?auto=format&fit=crop&q=80&w=1000' },
-    { id: 2, title: 'Smart Insights', subtitle: 'Personalized clinical logs', img: 'https://images.unsplash.com/photo-1551601651-2a8555f1a136?auto=format&fit=crop&q=80&w=1000' },
+    { id: 1, title: 'Health Hub', subtitle: 'Real-time vitals monitoring', img: 'https://images.unsplash.com/photo-1576091160550-2173dad99d1b?auto=format&fit=crop&q=80&w=1000' },
+    { id: 2, title: 'Fitness Lab', subtitle: 'BMI & Body Composition insights', img: 'https://images.unsplash.com/photo-1551601651-2a8555f1a136?auto=format&fit=crop&q=80&w=1000' },
   ];
 
   useEffect(() => {
@@ -31,16 +32,35 @@ const MonitoringScreen = ({ user, colors, navigation }) => {
     }
   }, [isMonitoring]);
 
+  // Cloud Sync Vitals Loop
   useEffect(() => {
     let interval;
-    if (isMonitoring) {
-      interval = setInterval(() => {
-        const hr = Math.floor(Math.random() * (130 - 65 + 1) + 65);
-        const spo2 = Math.floor(Math.random() * (100 - 97 + 1) + 97);
-        const temp = (97.5 + Math.random() * 2.1).toFixed(1);
-        setVitals({ hr, spo2, temp });
-        setRisk(detectRiskLevel(hr, spo2, thresholds));
-      }, 2500);
+    if (isMonitoring && auth.currentUser) {
+      interval = setInterval(async () => {
+        const hr = Math.floor(Math.random() * (130 - 68 + 1) + 68);
+        const spo2 = Math.floor(Math.random() * (100 - 98 + 1) + 98);
+        const temp = (97.5 + Math.random() * 2.2).toFixed(1);
+        
+        const newVitals = { hr, spo2, temp };
+        const newRisk = detectRiskLevel(hr, spo2, thresholds);
+        
+        setVitals(newVitals);
+        setRisk(newRisk);
+
+        // SYNC TO CLOUD
+        try {
+          const userRef = doc(db, "users", auth.currentUser.uid);
+          await updateDoc(userRef, {
+            currentHR: hr,
+            currentSpO2: spo2,
+            currentTemp: temp,
+            lastUpdate: serverTimestamp(),
+            status: newRisk.level
+          });
+        } catch (e) {
+          console.error("Cloud Vital Sync Error:", e);
+        }
+      }, 3000);
     }
     return () => clearInterval(interval);
   }, [isMonitoring, user.age]);
@@ -52,10 +72,7 @@ const MonitoringScreen = ({ user, colors, navigation }) => {
           horizontal
           pagingEnabled
           showsHorizontalScrollIndicator={false}
-          onScroll={Animated.event(
-            [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-            { useNativeDriver: true }
-          )}
+          onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], { useNativeDriver: true })}
           scrollEventThrottle={16}
         >
           {heroBanners.map((item, index) => {
@@ -76,10 +93,10 @@ const MonitoringScreen = ({ user, colors, navigation }) => {
 
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>Health Overview</Text>
+          <Text style={styles.greeting}>Live Status</Text>
           <View style={[styles.miniBadge, { backgroundColor: '#EDE7F6' }]}>
             <TrendingUp size={10} color={colors.primary} />
-            <Text style={[styles.badgeText, { color: colors.primary }]}>{user.goal}</Text>
+            <Text style={[styles.badgeText, { color: colors.primary }]}>{user.goal || 'Health Tracking'}</Text>
           </View>
         </View>
         <TouchableOpacity style={[styles.sosBtn, { backgroundColor: colors.red }]} onPress={() => navigation.navigate('Emergency')}>
@@ -111,7 +128,7 @@ const MonitoringScreen = ({ user, colors, navigation }) => {
 
         <View style={[styles.statusBanner, { backgroundColor: risk.color + '15', borderColor: risk.color }]}>
           <Zap size={16} color={risk.color} fill={risk.color} />
-          <Text style={[styles.statusMsg, { color: risk.color }]}>{isMonitoring ? `SYSTEM: ${risk.level}` : 'READY TO MONITOR'}</Text>
+          <Text style={[styles.statusMsg, { color: risk.color }]}>{isMonitoring ? `CLOUD SYNC ACTIVE: ${risk.level}` : 'READY TO STREAM'}</Text>
         </View>
       </View>
 
@@ -122,8 +139,8 @@ const MonitoringScreen = ({ user, colors, navigation }) => {
         >
           <Activity size={24} color="#FFF" />
           <View style={styles.actionTextCol}>
-            <Text style={styles.actionTitle}>{isMonitoring ? 'Stop Session' : 'Start Monitoring'}</Text>
-            <Text style={styles.actionSub}>{isMonitoring ? 'Data recording active' : 'Sync your biometric sensors'}</Text>
+            <Text style={styles.actionTitle}>{isMonitoring ? 'Stop Monitoring' : 'Start Live Stream'}</Text>
+            <Text style={styles.actionSub}>{isMonitoring ? 'Syncing to Firebase Cloud' : 'Connect biometric sensors'}</Text>
           </View>
           <ChevronRight size={20} color="#FFF" opacity={0.5} />
         </TouchableOpacity>
@@ -138,8 +155,8 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   carouselSection: { height: 220, marginTop: 10 },
   heroSlide: { width: width, paddingHorizontal: 15, height: 200, position: 'relative' },
-  heroImg: { position: 'absolute', top: 0, left: 15, right: 15, bottom: 0, width: width - 30, height: 200, borderRadius: 30, resizeMode: 'cover' },
-  heroOverlay: { position: 'absolute', bottom: 20, left: 35, backgroundColor: 'rgba(255,255,255,0.9)', padding: 12, borderRadius: 18, elevation: 5 },
+  heroImg: { position: 'absolute', top: 0, left: 15, right: 15, bottom: 0, width: width - 30, height: 200, borderRadius: 24, resizeMode: 'cover' },
+  heroOverlay: { position: 'absolute', bottom: 20, left: 35, backgroundColor: 'rgba(255,255,255,0.95)', padding: 12, borderRadius: 18, elevation: 5 },
   heroTitle: { fontSize: 16, fontWeight: 'bold', color: '#121212' },
   heroSub: { fontSize: 11, color: '#666', marginTop: 2 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 20, marginBottom: 20 },

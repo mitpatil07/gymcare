@@ -1,8 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Heart, User, Clock, Activity, HelpCircle } from 'lucide-react-native';
+import { View, ActivityIndicator } from 'react-native';
+
+// Firebase
+import { auth, db } from './src/firebaseConfig';
+import { onAuthStateChanged } from 'firebase/auth';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 
 // Screens
 import LoginScreen from './src/screens/LoginScreen';
@@ -44,7 +50,7 @@ const MainTabs = ({ userData, setUserData, history }) => (
       },
     })}
   >
-    <Tab.Screen name="Monitoring" options={{ title: 'Vitals' }}>
+    <Tab.Screen name="Monitoring" options={{ title: 'Live Vitals' }}>
       {props => <MonitoringScreen {...props} user={userData} colors={COLORS} />}
     </Tab.Screen>
     <Tab.Screen name="History" options={{ title: 'Logs' }}>
@@ -58,40 +64,62 @@ const MainTabs = ({ userData, setUserData, history }) => (
 );
 
 const App = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userData, setUserData] = useState({
-    name: 'Mitesh', age: 25, gender: 'Male', height: 175, weight: 70, bloodGroup: 'B+', goal: 'Muscle Gain',
-    hasDisease: 'No', 
-    diseaseName: '', 
-    diseaseDesc: '', 
-    severity: 'None',
-    symptoms: '',
-    sinceWhen: '',
-    doctorName: '',
-    medicineName: 'Vitamin D', dosage: '1000 IU', frequency: 'Once Daily', medTime: 'Morning',
-    emergencyContact: '9876543210', relation: 'Brother',
-    workoutType: 'Strength', duration: '45 mins', calories: '320 kcal', steps: '8400',
-    bodyTemp: 98.6
-  });
+  const [user, setUser] = useState(null);
+  const [userData, setUserData] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const [history] = useState([
-    { id: '1', date: 'Today, 10:30 AM', hr: 72, spo2: 98, temp: 98.4, status: 'Normal' },
-    { id: '2', date: 'Yesterday, 4:15 PM', hr: 115, spo2: 96, temp: 99.1, status: 'Active' },
-  ]);
+  useEffect(() => {
+    // 1. Listen for Auth State Changes (Auto-Login)
+    const unsubscribeAuth = onAuthStateChanged(auth, (authenticatedUser) => {
+      setUser(authenticatedUser);
+      if (!authenticatedUser) {
+        setUserData(null);
+        setLoading(false);
+      }
+    });
+
+    return unsubscribeAuth;
+  }, []);
+
+  useEffect(() => {
+    // 2. Fetch User Data from Firestore if logged in
+    let unsubscribeDoc = () => {};
+    if (user) {
+      const userRef = doc(db, "users", user.uid);
+      unsubscribeDoc = onSnapshot(userRef, (snapshot) => {
+        if (snapshot.exists()) {
+          setUserData(snapshot.data());
+        }
+        setLoading(false);
+      }, (error) => {
+        console.error("Firestore error:", error);
+        setLoading(false);
+      });
+    }
+    return () => unsubscribeDoc();
+  }, [user]);
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background }}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    );
+  }
 
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerStyle: { backgroundColor: COLORS.card }, headerTintColor: COLORS.text }}>
-        {!isAuthenticated ? (
+        {!user ? (
           <Stack.Screen name="Login" options={{ headerShown: false }}>
-            {props => <LoginScreen {...props} onLogin={() => setIsAuthenticated(true)} colors={COLORS} />}
+            {props => <LoginScreen {...props} onLogin={() => {}} colors={COLORS} />}
           </Stack.Screen>
         ) : (
           <>
             <Stack.Screen name="Main" options={{ headerShown: false }}>
-              {props => <MainTabs userData={userData} setUserData={setUserData} history={history} />}
+              {props => <MainTabs userData={userData || {}} setUserData={setUserData} history={[]} />}
             </Stack.Screen>
-            <Stack.Screen name="Emergency" component={EmergencyScreen} options={{ title: 'Emergency Response' }} />
+            <Stack.Screen name="Emergency" component={EmergencyScreen} options={{ title: 'Emergency Hub' }} />
           </>
         )}
       </Stack.Navigator>
