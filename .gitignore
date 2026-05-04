@@ -9,6 +9,8 @@ dist/
 web-build/
 
 # React Native
+ios/
+android/
 ios/build/
 android/build/
 android/app/build/
