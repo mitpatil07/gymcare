@@ -15,10 +15,6 @@
       "**/*"
     ],
     "scheme": "gymcare",
-    "plugins": [
-      "expo-image-picker",
-      "expo-font"
-    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.gymcare.app"
