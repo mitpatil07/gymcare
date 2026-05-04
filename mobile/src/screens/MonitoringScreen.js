@@ -45,8 +45,8 @@ const MonitoringScreen = ({ user, colors, navigation }) => {
         </View>
         <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
           <Image 
-            source={{ uri: `https://api.dicebear.com/7.x/personas/png?seed=${user?.name || 'User'}&backgroundColor=d8b4fe${user?.gender === 'Female' ? '&hair=long' : '&hair=short'}` }} 
-            style={styles.avatar} 
+            source={{ uri: `https://api.dicebear.com/7.x/notionists/png?seed=${user?.name || 'User'}` }} 
+            style={[styles.avatar, { backgroundColor: '#D8B4FE' }]} 
           />
         </TouchableOpacity>
       </View>

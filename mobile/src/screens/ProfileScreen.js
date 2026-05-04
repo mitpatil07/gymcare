@@ -81,7 +81,7 @@ const ProfileScreen = ({ user, colors, navigation }) => {
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
             <Image 
-              source={{ uri: `https://api.dicebear.com/7.x/personas/png?seed=${formData?.name || 'User'}&backgroundColor=d8b4fe${formData?.gender === 'Female' ? '&hair=long' : '&hair=short'}` }} 
+              source={{ uri: `https://api.dicebear.com/7.x/notionists/png?seed=${formData?.name || 'User'}` }} 
               style={[styles.avatar, { backgroundColor: colors.purple }]} 
             />
           </View>
